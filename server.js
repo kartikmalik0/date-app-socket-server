@@ -1,9 +1,8 @@
-// server.js
-
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { PrismaClient } = require('@prisma/client');
+const path = require('path');
 
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
@@ -16,22 +15,22 @@ const io = new Server(server, {
     },
 });
 
+// Serve static files from the "public" directory
+app.use(express.static(path.join(__dirname, 'public')));
+
 const rooms = {}; // Store rooms
 
 // Helper function to find nearby users
 async function findNearbyUser(user) {
     const { pincode, gender } = user;
-
-    // Find the first three digits of the pincode for city comparison
     const cityPincode = pincode?.substring(0, 3);
     const statePincode = pincode?.substring(0, 2);
 
-    // Query for users with the same city but different gender and not the same pincode
     let nearbyUser = await prisma.user.findFirst({
         where: {
             pincode: {
                 not: pincode,
-                startsWith: cityPincode, // Users from the same city
+                startsWith: cityPincode,
             },
             gender: gender === "male" ? "female" : "male",
             status: "waiting",
@@ -40,12 +39,11 @@ async function findNearbyUser(user) {
 
     if (nearbyUser) return nearbyUser;
 
-    // If no user found in the same city, search in the same state
     nearbyUser = await prisma.user.findFirst({
         where: {
             pincode: {
                 not: pincode,
-                startsWith: statePincode, // Users from the same state
+                startsWith: statePincode,
             },
             gender: gender === "male" ? "female" : "male",
             status: "waiting",
@@ -55,11 +53,9 @@ async function findNearbyUser(user) {
     return nearbyUser;
 }
 
-// Handle socket connections
 io.on('connection', async (socket) => {
     console.log(`User connected: ${socket.id}`);
 
-    // Handle user login
     socket.on('login', async ({ username, id, pincode, gender }) => {
         socket.username = username;
         socket.userId = id;
@@ -72,14 +68,12 @@ io.on('connection', async (socket) => {
                 data: { status: 'waiting' },
             });
         }
-        // Check if the user is already in a room
+
         if (socket.currentRoom) {
-            // Leave the current room and delete the reference
             socket.leave(socket.currentRoom);
             delete socket.currentRoom;
         }
 
-        // Check if the user is already marked as 'joined'
         const user = await prisma.user.findUnique({
             where: { id },
             select: { status: true },
@@ -89,12 +83,11 @@ io.on('connection', async (socket) => {
             socket.emit('loginError', { message: 'You are already joined' });
         }
         socket.emit('loadingNearbyUser', true);
-        // Find a nearby user based on proximity and opposite gender
+
         const nearbyUser = await findNearbyUser({ pincode, gender });
 
         let room = null;
         if (nearbyUser) {
-            // Check if the nearby user is already in a room
             for (const [roomId, roomData] of Object.entries(rooms)) {
                 if (
                     roomData.users.some(
@@ -108,14 +101,12 @@ io.on('connection', async (socket) => {
             }
         }
 
-        // If no suitable room found, create a new room
         if (!room) {
             const roomId = `room-${Date.now()}`;
             room = { id: roomId, users: [] };
             rooms[roomId] = room;
         }
 
-        // Join the room
         socket.join(room.id);
         room.users.push({ id: socket.id, userId: socket.userId });
 
@@ -127,7 +118,7 @@ io.on('connection', async (socket) => {
                 data: { status: 'waiting' },
             });
         }
-        // Notify users in the room
+
         io.to(room.id).emit('roomJoined', room);
 
         socket.emit('loadingNearbyUser', false);
@@ -145,40 +136,32 @@ io.on('connection', async (socket) => {
                 data: { status: 'joined' },
             });
 
-            // Notify users in the room that they are now joined
             io.to(room.id).emit('userJoined', { userIds });
         }
     });
 
-    // Handle manual disconnect from a room
     socket.on('disconnectFromRoom', async (roomId) => {
         if (socket.currentRoom) {
             const room = rooms[roomId];
             if (room) {
                 const userIds = room.users.map((user) => user.userId);
 
-                // Update user status to "waiting"
                 await prisma.user.updateMany({
                     where: { id: { in: userIds } },
                     data: { status: 'waiting' },
                 });
 
-                // Notify users in the room that a user left
                 io.to(socket.currentRoom).emit('userLeftRoom', socket.username);
 
-                // Remove the user from the room
                 room.users = room.users.filter((user) => user.id !== socket.id);
 
-                // If no users left in the room, delete the room
                 if (room.users.length === 0) {
                     delete rooms[socket.currentRoom];
                 }
 
-                // Leave the socket room and reset currentRoom
                 socket.leave(socket.currentRoom);
                 socket.currentRoom = null;
 
-                // Notify remaining users about their new status
                 room.users.forEach((user) => {
                     const remainingUserSocket = io.sockets.sockets.get(user.id);
                     if (remainingUserSocket) {
@@ -186,13 +169,11 @@ io.on('connection', async (socket) => {
                     }
                 });
 
-                // Delete the room so user can create and join another room
                 delete rooms[roomId];
             }
         }
     });
 
-    // Handle chat messages
     socket.on('sendMessage', ({ message }) => {
         io.to(socket.currentRoom).emit('message', {
             username: socket.username,
@@ -200,11 +181,10 @@ io.on('connection', async (socket) => {
         });
     });
 
-    // Handle disconnect
     socket.on('disconnect', async () => {
         console.log('user id ', socket.userId);
         console.log(`User disconnected: ${socket.id}`);
-        // Remove user from room if applicable
+
         if (socket.currentRoom) {
             const room = rooms[socket.currentRoom];
             if (room) {
@@ -214,7 +194,6 @@ io.on('connection', async (socket) => {
                 }
             }
 
-            // Emit userDisconnected event to notify clients in the room
             io.to(socket.currentRoom).emit('userDisconnected', socket.username);
 
             socket.leave(socket.currentRoom);
@@ -224,5 +203,5 @@ io.on('connection', async (socket) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on http://0.0.0.0:${PORT}`);
 });
