@@ -1,11 +1,11 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const { PrismaClient } = require('@prisma/client');
-const path = require('path');
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const { PrismaClient } = require("@prisma/client");
+const path = require("path");
 
 const prisma = new PrismaClient();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 80;
 
 const app = express();
 const server = http.createServer(app);
@@ -16,7 +16,7 @@ const io = new Server(server, {
 });
 
 // Serve static files from the "public" directory
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 
 const rooms = {}; // Store rooms
 
@@ -53,10 +53,10 @@ async function findNearbyUser(user) {
     return nearbyUser;
 }
 
-io.on('connection', async (socket) => {
+io.on("connection", async (socket) => {
     console.log(`User connected: ${socket.id}`);
 
-    socket.on('login', async ({ username, id, pincode, gender }) => {
+    socket.on("login", async ({ username, id, pincode, gender }) => {
         socket.username = username;
         socket.userId = id;
         socket.pincode = pincode;
@@ -65,7 +65,7 @@ io.on('connection', async (socket) => {
         if (socket.userId) {
             await prisma.user.update({
                 where: { id: socket.userId },
-                data: { status: 'waiting' },
+                data: { status: "waiting" },
             });
         }
 
@@ -79,10 +79,10 @@ io.on('connection', async (socket) => {
             select: { status: true },
         });
 
-        if (user.status === 'joined') {
-            socket.emit('loginError', { message: 'You are already joined' });
+        if (user.status === "joined") {
+            socket.emit("loginError", { message: "You are already joined" });
         }
-        socket.emit('loadingNearbyUser', true);
+        socket.emit("loadingNearbyUser", true);
 
         const nearbyUser = await findNearbyUser({ pincode, gender });
 
@@ -115,32 +115,32 @@ io.on('connection', async (socket) => {
         if (socket.userId) {
             await prisma.user.update({
                 where: { id: socket.userId },
-                data: { status: 'waiting' },
+                data: { status: "waiting" },
             });
         }
 
-        io.to(room.id).emit('roomJoined', room);
+        io.to(room.id).emit("roomJoined", room);
 
-        socket.emit('loadingNearbyUser', false);
+        socket.emit("loadingNearbyUser", false);
 
         if (nearbyUser) {
-            socket.emit('nearbyUser', nearbyUser);
+            socket.emit("nearbyUser", nearbyUser);
         } else {
-            socket.emit('nearbyUser', null);
+            socket.emit("nearbyUser", null);
         }
 
         if (room.users.length === 2) {
             const userIds = room.users.map((user) => user.userId);
             await prisma.user.updateMany({
                 where: { id: { in: userIds } },
-                data: { status: 'joined' },
+                data: { status: "joined" },
             });
 
-            io.to(room.id).emit('userJoined', { userIds });
+            io.to(room.id).emit("userJoined", { userIds });
         }
     });
 
-    socket.on('disconnectFromRoom', async (roomId) => {
+    socket.on("disconnectFromRoom", async (roomId) => {
         if (socket.currentRoom) {
             const room = rooms[roomId];
             if (room) {
@@ -148,10 +148,10 @@ io.on('connection', async (socket) => {
 
                 await prisma.user.updateMany({
                     where: { id: { in: userIds } },
-                    data: { status: 'waiting' },
+                    data: { status: "waiting" },
                 });
 
-                io.to(socket.currentRoom).emit('userLeftRoom', socket.username);
+                io.to(socket.currentRoom).emit("userLeftRoom", socket.username);
 
                 room.users = room.users.filter((user) => user.id !== socket.id);
 
@@ -165,7 +165,7 @@ io.on('connection', async (socket) => {
                 room.users.forEach((user) => {
                     const remainingUserSocket = io.sockets.sockets.get(user.id);
                     if (remainingUserSocket) {
-                        remainingUserSocket.emit('userWaiting');
+                        remainingUserSocket.emit("userWaiting");
                     }
                 });
 
@@ -174,15 +174,15 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on('sendMessage', ({ message }) => {
-        io.to(socket.currentRoom).emit('message', {
+    socket.on("sendMessage", ({ message }) => {
+        io.to(socket.currentRoom).emit("message", {
             username: socket.username,
             message,
         });
     });
 
-    socket.on('disconnect', async () => {
-        console.log('user id ', socket.userId);
+    socket.on("disconnect", async () => {
+        console.log("user id ", socket.userId);
         console.log(`User disconnected: ${socket.id}`);
 
         if (socket.currentRoom) {
@@ -194,7 +194,7 @@ io.on('connection', async (socket) => {
                 }
             }
 
-            io.to(socket.currentRoom).emit('userDisconnected', socket.username);
+            io.to(socket.currentRoom).emit("userDisconnected", socket.username);
 
             socket.leave(socket.currentRoom);
             socket.currentRoom = null;
@@ -203,5 +203,5 @@ io.on('connection', async (socket) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Server is running on http://0.0.0.0:${PORT}`);
+    console.log(`Server is running on http://localhost:${PORT}`);
 });
