@@ -1,14 +1,14 @@
 const express = require("express");
-const http = require("http");
+const https = require("https");
 const { Server } = require("socket.io");
 const { PrismaClient } = require("@prisma/client");
 const path = require("path");
 
 const prisma = new PrismaClient();
-const PORT = process.env.PORT || 80;
+const PORT = process.env.PORT || 3001;
 
 const app = express();
-const server = http.createServer(app);
+const server = https.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -108,7 +108,12 @@ io.on("connection", async (socket) => {
         }
 
         socket.join(room.id);
-        room.users.push({ id: socket.id, userId: socket.userId });
+        room.users.push({
+            id: socket.id,
+            userId: socket.userId,
+            username: socket.username,
+            gender: socket.gender,
+        });
 
         socket.currentRoom = room.id;
 
@@ -193,7 +198,7 @@ io.on("connection", async (socket) => {
                     delete rooms[socket.currentRoom];
                 }
             }
-
+            io.to(socket.currentRoom).emit("userLeftRoom", socket.username);
             io.to(socket.currentRoom).emit("userDisconnected", socket.username);
 
             socket.leave(socket.currentRoom);
@@ -203,5 +208,5 @@ io.on("connection", async (socket) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on https://localhost:${PORT}`);
 });
