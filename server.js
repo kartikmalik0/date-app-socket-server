@@ -1,14 +1,14 @@
 const express = require("express");
-const https = require("https");
+const http = require("http");
 const { Server } = require("socket.io");
 const { PrismaClient } = require("@prisma/client");
 const path = require("path");
 
 const prisma = new PrismaClient();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3005;
 
 const app = express();
-const server = https.createServer(app);
+const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: "*",
