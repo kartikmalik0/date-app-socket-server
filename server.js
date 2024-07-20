@@ -143,6 +143,16 @@ io.on("connection", async (socket) => {
 
             io.to(room.id).emit("userJoined", { userIds });
         }
+
+        // Handle typing event
+        socket.on("typing", (typingUserDetails) => {
+            io.to(typingUserDetails.currentRoom).emit("typingServer", typingUserDetails.username);
+        });
+
+        // Handle stop typing event
+        socket.on("stopTyping", (typingUserDetails) => {
+            io.to(typingUserDetails.currentRoom).emit("stopTypingServer", typingUserDetails.username);
+        });
     });
 
     socket.on("disconnectFromRoom", async (roomId) => {
@@ -208,5 +218,5 @@ io.on("connection", async (socket) => {
 });
 
 server.listen(PORT, () => {
-    console.log(`Server is running on https://localhost:${PORT}`);
+    console.log(`Server is running on http://localhost:${PORT}`);
 });
