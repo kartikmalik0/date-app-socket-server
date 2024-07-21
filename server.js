@@ -146,12 +146,18 @@ io.on("connection", async (socket) => {
 
         // Handle typing event
         socket.on("typing", (typingUserDetails) => {
-            io.to(typingUserDetails.currentRoom).emit("typingServer", typingUserDetails.username);
+            io.to(typingUserDetails.currentRoom).emit(
+                "typingServer",
+                typingUserDetails.username
+            );
         });
 
         // Handle stop typing event
         socket.on("stopTyping", (typingUserDetails) => {
-            io.to(typingUserDetails.currentRoom).emit("stopTypingServer", typingUserDetails.username);
+            io.to(typingUserDetails.currentRoom).emit(
+                "stopTypingServer",
+                typingUserDetails.username
+            );
         });
     });
 
@@ -163,7 +169,7 @@ io.on("connection", async (socket) => {
 
                 await prisma.user.updateMany({
                     where: { id: { in: userIds } },
-                    data: { status: "waiting" },
+                    data: { status: "offline" },
                 });
 
                 io.to(socket.currentRoom).emit("userLeftRoom", socket.username);
@@ -197,22 +203,45 @@ io.on("connection", async (socket) => {
     });
 
     socket.on("disconnect", async () => {
-        console.log("user id ", socket.userId);
         console.log(`User disconnected: ${socket.id}`);
 
         if (socket.currentRoom) {
             const room = rooms[socket.currentRoom];
             if (room) {
+                const userIds = room.users.map((user) => user.userId);
+
+                // Update all users in the room to offline status
+                await prisma.user.updateMany({
+                    where: { id: { in: userIds } },
+                    data: { status: "offline" },
+                });
+
+                // Remove the disconnecting user from the room
                 room.users = room.users.filter((user) => user.id !== socket.id);
-                if (room.users.length === 1) {
+
+                // Emit user left and user disconnected events to the remaining users
+                io.to(socket.currentRoom).emit("userLeftRoom", socket.username);
+                io.to(socket.currentRoom).emit(
+                    "userDisconnected",
+                    socket.username
+                );
+
+                // If the room is now empty, delete it
+                if (room.users.length === 0) {
                     delete rooms[socket.currentRoom];
                 }
-            }
-            io.to(socket.currentRoom).emit("userLeftRoom", socket.username);
-            io.to(socket.currentRoom).emit("userDisconnected", socket.username);
 
-            socket.leave(socket.currentRoom);
-            socket.currentRoom = null;
+                // Leave the room
+                socket.leave(socket.currentRoom);
+                socket.currentRoom = null;
+            }
+        }
+
+        if (socket.userId) {
+            await prisma.user.update({
+                where: { id: socket.userId },
+                data: { status: "offline" },
+            });
         }
     });
 });
