@@ -220,7 +220,7 @@ io.on("connection", async (socket) => {
                 room.users = room.users.filter((user) => user.id !== socket.id);
 
                 // Emit user left and user disconnected events to the remaining users
-                io.to(socket.currentRoom).emit("userLeftRoom", socket.username);
+                // io.to(socket.currentRoom).emit("userLeftRoom", socket.username);
                 io.to(socket.currentRoom).emit(
                     "userDisconnected",
                     socket.username
