@@ -28,10 +28,10 @@ async function findNearbyUser(user) {
 
     let nearbyUser = await prisma.user.findFirst({
         where: {
-            pincode: {
-                not: pincode,
-                startsWith: cityPincode,
-            },
+            // pincode: {
+            //     not: pincode,
+            //     startsWith: cityPincode,
+            // },
             gender: gender === "male" ? "female" : "male",
             status: "waiting",
         },
@@ -41,10 +41,10 @@ async function findNearbyUser(user) {
 
     nearbyUser = await prisma.user.findFirst({
         where: {
-            pincode: {
-                not: pincode,
-                startsWith: statePincode,
-            },
+            // pincode: {
+            //     not: pincode,
+            //     startsWith: statePincode,
+            // },
             gender: gender === "male" ? "female" : "male",
             status: "waiting",
         },
